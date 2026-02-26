@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Claude Code Notifier - macOS desktop notification hook with AI session summary.
+Claude Code Notifier - desktop notification hook with AI session summary.
+Supports macOS (osascript) and Windows (PowerShell toast).
 
 Triggers on:
   - Stop: Claude finished responding
@@ -88,7 +89,10 @@ def summarize_locally(text):
 
 def get_session_name(transcript, session_id, cwd):
     """Get a short session name: cache -> AI summary -> local extraction -> dir name."""
-    cache_dir = os.path.expanduser("~/.cache/claude-code-notifier")
+    if sys.platform == "win32":
+        cache_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "claude-code-notifier")
+    else:
+        cache_dir = os.path.expanduser("~/.cache/claude-code-notifier")
     os.makedirs(cache_dir, exist_ok=True)
     cache_file = os.path.join(cache_dir, session_id) if session_id else ""
 
@@ -130,9 +134,22 @@ def get_session_name(transcript, session_id, cwd):
     return session_name or os.path.basename(cwd)
 
 
+WINDOWS_SOUNDS = {
+    "Hero": r"C:\Windows\Media\Windows Notify System Generic.wav",
+    "Sosumi": r"C:\Windows\Media\Windows Notify Calendar.wav",
+}
+
+
 def send_notification(title, subtitle, body, sound):
+    """Send a desktop notification with sound (macOS or Windows)."""
+    if sys.platform == "win32":
+        _send_windows_notification(title, subtitle, body, sound)
+    else:
+        _send_macos_notification(title, subtitle, body, sound)
+
+
+def _send_macos_notification(title, subtitle, body, sound):
     """Send a macOS desktop notification with sound."""
-    # Escape double quotes for AppleScript
     body = body.replace('"', '\\"')
     subtitle = subtitle.replace('"', '\\"')
     script = (
@@ -142,6 +159,52 @@ def send_notification(title, subtitle, body, sound):
         f'sound name "{sound}"'
     )
     subprocess.run(["osascript", "-e", script], capture_output=True)
+
+
+def _send_windows_notification(title, subtitle, body, sound):
+    """Send a Windows toast notification with sound."""
+    sound_path = WINDOWS_SOUNDS.get(sound, "")
+    # Play sound in background
+    if sound_path and os.path.exists(sound_path):
+        ps_sound = (
+            f"(New-Object System.Media.SoundPlayer '{sound_path}').PlaySync()"
+        )
+        subprocess.Popen(
+            ["powershell", "-NoProfile", "-Command", ps_sound],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    # Send toast notification via PowerShell with registered App ID
+    display_body = f"{subtitle}\n{body}" if subtitle else body
+    title = title.replace("'", "''")
+    display_body = display_body.replace("'", "''")
+    ps_toast = f"""
+$appId = 'Claude.Code.Notifier'
+$regPath = 'HKCU:\\Software\\Classes\\AppUserModelId\\' + $appId
+if (-not (Test-Path $regPath)) {{
+    New-Item -Path $regPath -Force | Out-Null
+    New-ItemProperty -Path $regPath -Name 'DisplayName' -Value 'Claude Code' -PropertyType String -Force | Out-Null
+}}
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime] | Out-Null
+$xml = @'
+<toast>
+  <visual>
+    <binding template="ToastGeneric">
+      <text>{title}</text>
+      <text>{display_body}</text>
+    </binding>
+  </visual>
+</toast>
+'@
+$doc = New-Object Windows.Data.Xml.Dom.XmlDocument
+$doc.LoadXml($xml)
+$toast = [Windows.UI.Notifications.ToastNotification]::new($doc)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show($toast)
+"""
+    subprocess.run(
+        ["powershell", "-NoProfile", "-Command", ps_toast],
+        capture_output=True,
+    )
 
 
 def main():

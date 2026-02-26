@@ -1,6 +1,6 @@
 # Claude Code Notifier
 
-macOS desktop notifications for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Know when Claude finishes or needs your attention — without watching the terminal.
+Desktop notifications for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) on macOS and Windows. Know when Claude finishes or needs your attention — without watching the terminal.
 
 [中文文档](#中文文档)
 
@@ -16,7 +16,7 @@ Claude Code is a terminal-based AI coding assistant. When you assign it a task, 
 
 **The problem:** There's no built-in way to know when Claude finishes or needs your input. You either stare at the terminal waiting, or context-switch and miss the moment Claude is done. Both waste your time.
 
-**The solution:** This tool uses Claude Code's [Hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) system to send macOS native desktop notifications with sound alerts. The notification subtitle shows an AI-generated session summary so you can tell *which* task finished at a glance — especially useful when running multiple sessions.
+**The solution:** This tool uses Claude Code's [Hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) system to send native desktop notifications with sound alerts. On macOS it uses `osascript`, on Windows it uses PowerShell toast notifications with a registered App ID for proper Action Center integration. The notification subtitle shows an AI-generated session summary so you can tell *which* task finished at a glance — especially useful when running multiple sessions.
 
 **The result:** You get a notification the instant Claude is done. Switch to another app, grab a coffee, work on something else — the notification will find you.
 
@@ -32,10 +32,10 @@ Claude Code is a terminal-based AI coding assistant. When you assign it a task, 
 
 This tool listens to 2 hook events. Claude Code supports more — you can extend it to cover others:
 
-| Hook Event | Title | Sound | When |
-|---|---|---|---|
-| `Stop` | ✅ Complete | Hero | Claude finished responding |
-| `Notification` | ⏳ Waiting | Sosumi | Claude needs permission or user input |
+| Hook Event | Title | macOS Sound | Windows Sound | When |
+|---|---|---|---|---|
+| `Stop` | ✅ Complete | Hero | Windows Notify System Generic | Claude finished responding |
+| `Notification` | ⏳ Waiting | Sosumi | Windows Notify Calendar | Claude needs permission or user input |
 
 ### All Available Claude Code Hook Events
 
@@ -73,18 +73,44 @@ All available sounds in `/System/Library/Sounds/`:
 | `Purr` | Soft vibration | Gentle reminders |
 | `Submarine` | Low sonar ping | System events |
 
+### Windows System Sounds Reference
+
+All available sounds in `C:\Windows\Media\`. You can change the sound mapping in the `WINDOWS_SOUNDS` dict in `notify.py`.
+
+| Sound | Style | Best For |
+|---|---|---|
+| `Windows Notify System Generic` | Clean, modern | Task completion (default for Stop) |
+| `Windows Notify Calendar` | Soft chime | Attention needed (default for Notification) |
+| `Windows Notify Email` | Brief, clear | Minor updates |
+| `Windows Notify Messaging` | Quick ping | Messages |
+| `Windows Critical Stop` | Urgent | Critical errors |
+| `Windows Exclamation` | Alert tone | Warnings |
+| `Windows Hardware Insert` | Rising tone | Session start |
+| `chimes` | Classic chime | General notifications |
+| `notify` | Standard notify | Neutral events |
+
 ## Requirements
 
-- **macOS** (uses `osascript` for native notifications)
+- **macOS** or **Windows 10/11**
 - **Python 3.6+**
 - **Claude Code** installed and configured
 
 ## Installation
 
+### macOS
+
 ```bash
 git clone https://github.com/yike-gunshi/claude-code-notifier.git
 cd claude-code-notifier
 bash install.sh
+```
+
+### Windows
+
+```powershell
+git clone https://github.com/yike-gunshi/claude-code-notifier.git
+cd claude-code-notifier
+powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 Restart Claude Code after installation.
@@ -117,16 +143,19 @@ Claude Code Hook (stdin JSON)
         │   or Local keyword extraction
         │       │
         │       ▼
-        ├── Cache summary (~/.cache/claude-code-notifier/)
+        ├── Cache summary
+        │   macOS: ~/.cache/claude-code-notifier/
+        │   Windows: %LOCALAPPDATA%\claude-code-notifier\
         │
         ▼
-   macOS Notification + Sound
+   Desktop Notification + Sound
+   macOS: osascript  │  Windows: PowerShell toast (registered App ID)
 ```
 
 1. Claude Code triggers the hook with JSON via stdin (contains `session_id`, `transcript_path`, `last_assistant_message`, etc.)
 2. The script reads the first user message from the session transcript
 3. Generates a short summary (AI or local fallback) and caches it per session
-4. Sends a macOS native notification with the summary as subtitle
+4. Sends a native desktop notification with the summary as subtitle
 
 ## Configuration
 
@@ -163,9 +192,18 @@ If you prefer to configure hooks manually, add this to `~/.claude/settings.json`
 
 ## Uninstall
 
+### macOS
+
 ```bash
 cd claude-code-notifier
 bash uninstall.sh
+```
+
+### Windows
+
+```powershell
+cd claude-code-notifier
+powershell -ExecutionPolicy Bypass -File uninstall.ps1
 ```
 
 ## Related Projects
@@ -186,7 +224,7 @@ MIT
 
 # 中文文档
 
-macOS 桌面通知工具，适配 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)。无需盯着终端，Claude 完成或需要你操作时自动弹窗提醒。
+macOS 和 Windows 桌面通知工具，适配 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)。无需盯着终端，Claude 完成或需要你操作时自动弹窗提醒。
 
 ## 背景
 
@@ -194,7 +232,7 @@ Claude Code 是一个基于终端的 AI 编程助手。当你给它分配任务�
 
 **问题：** Claude Code 没有内置的完成提示音。你要么一直盯着终端等，要么切换到其他工作后错过 Claude 完成的时机。两种方式都浪费时间。
 
-**解决方案：** 利用 Claude Code 的 [Hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) 机制，在任务完成或需要操作时发送 macOS 原生桌面通知 + 提示音。通知副标题会显示 AI 生成的会话摘要，一眼就能看出是哪个任务——多会话并行时尤其有用。
+**解决方案：** 利用 Claude Code 的 [Hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) 机制，在任务完成或需要操作时发送原生桌面通知 + 提示音。macOS 使用 `osascript`，Windows 使用注册 App ID 的 PowerShell toast 通知，支持操作中心（Action Center）完整显示。通知副标题会显示 AI 生成的会话摘要，一眼就能看出是哪个任务——多会话并行时尤其有用。
 
 **效果：** Claude 完成的瞬间你就会收到通知。切换到其他 App、喝杯咖啡、做别的事情——通知会找到你。
 
@@ -210,10 +248,10 @@ Claude Code 是一个基于终端的 AI 编程助手。当你给它分配任务�
 
 本工具监听 2 个 Hook 事件。Claude Code 还支持更多，你可以自行扩展：
 
-| Hook 事件 | 标题 | 声音 | 触发时机 |
-|---|---|---|---|
-| `Stop` | ✅ 已完成 | Hero | Claude 完成回复 |
-| `Notification` | ⏳ 等待操作 | Sosumi | Claude 需要权限或等待输入 |
+| Hook 事件 | 标题 | macOS 声音 | Windows 声音 | 触发时机 |
+|---|---|---|---|---|
+| `Stop` | ✅ 已完成 | Hero | Windows Notify System Generic | Claude 完成回复 |
+| `Notification` | ⏳ 等待操作 | Sosumi | Windows Notify Calendar | Claude 需要权限或等待输入 |
 
 ### 所有可用的 Claude Code Hook 事件
 
@@ -251,12 +289,38 @@ Claude Code 是一个基于终端的 AI 编程助手。当你给它分配任务�
 | `Purr` | 轻微振动 | 温和提醒 |
 | `Submarine` | 低频声纳 | 系统事件 |
 
+### Windows 系统声音参考
+
+`C:\Windows\Media\` 下可用声音，可在 `notify.py` 的 `WINDOWS_SOUNDS` 字典中修改映射：
+
+| 声音 | 风格 | 适合场景 |
+|---|---|---|
+| `Windows Notify System Generic` | 干净、现代 | 任务完成（Stop 默认） |
+| `Windows Notify Calendar` | 柔和铃声 | 需要注意（Notification 默认） |
+| `Windows Notify Email` | 简短、清晰 | 次要更新 |
+| `Windows Notify Messaging` | 快速提示 | 消息通知 |
+| `Windows Critical Stop` | 紧急感 | 严重错误 |
+| `Windows Exclamation` | 警告音 | 警告 |
+| `Windows Hardware Insert` | 上升音调 | 会话开始 |
+| `chimes` | 经典铃声 | 通用通知 |
+| `notify` | 标准通知音 | 中性事件 |
+
 ## 安装
+
+### macOS
 
 ```bash
 git clone https://github.com/yike-gunshi/claude-code-notifier.git
 cd claude-code-notifier
 bash install.sh
+```
+
+### Windows
+
+```powershell
+git clone https://github.com/yike-gunshi/claude-code-notifier.git
+cd claude-code-notifier
+powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 安装后重启 Claude Code 即可生效。
@@ -273,9 +337,18 @@ pip install anthropic
 
 ## 卸载
 
+### macOS
+
 ```bash
 cd claude-code-notifier
 bash uninstall.sh
+```
+
+### Windows
+
+```powershell
+cd claude-code-notifier
+powershell -ExecutionPolicy Bypass -File uninstall.ps1
 ```
 
 ## 相关项目
