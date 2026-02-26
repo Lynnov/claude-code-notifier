@@ -63,5 +63,12 @@ if (Test-Path $cacheDir) {
     Write-Host "Cleared session summary cache" -ForegroundColor Green
 }
 
+# Remove protocol handler
+$protocolKey = "HKCU:\Software\Classes\claude-code-notifier"
+if (Test-Path $protocolKey) {
+    Remove-Item $protocolKey -Recurse -Force
+    Write-Host "Removed protocol handler: claude-code-notifier://" -ForegroundColor Green
+}
+
 Write-Host ""
 Write-Host "Uninstall complete. Restart Claude Code to apply." -ForegroundColor Green

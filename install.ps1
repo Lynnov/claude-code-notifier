@@ -62,6 +62,41 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "Installation complete! Restart Claude Code to activate." -ForegroundColor Green
+
+# Register protocol handler for toast click-to-activate
+Write-Host ""
+Write-Host "Registering protocol handler..." -ForegroundColor Yellow
+
+$ActivateScript = "$ScriptDir\activate_window.py"
+$PythonwPath = $null
+
+# Find pythonw.exe
+$pythonExe = Get-Command python -ErrorAction SilentlyContinue
+if ($pythonExe) {
+    $candidate = Join-Path (Split-Path $pythonExe.Source) "pythonw.exe"
+    if (Test-Path $candidate) { $PythonwPath = $candidate }
+}
+if (-not $PythonwPath) {
+    try {
+        $pyOutput = py -3 -c "import sys, os; print(os.path.join(os.path.dirname(sys.executable), 'pythonw.exe'))" 2>$null
+        if ($pyOutput -and (Test-Path $pyOutput)) { $PythonwPath = $pyOutput }
+    } catch {}
+}
+
+if ($PythonwPath) {
+    $protocolKey = "HKCU:\Software\Classes\claude-code-notifier"
+    New-Item -Path $protocolKey -Force | Out-Null
+    Set-ItemProperty -Path $protocolKey -Name "(Default)" -Value "Claude Code Notifier Protocol"
+    Set-ItemProperty -Path $protocolKey -Name "URL Protocol" -Value ""
+    $commandKey = "$protocolKey\shell\open\command"
+    New-Item -Path $commandKey -Force | Out-Null
+    Set-ItemProperty -Path $commandKey -Name "(Default)" -Value "`"$PythonwPath`" `"$ActivateScript`" `"%1`""
+    Write-Host "Protocol handler registered: claude-code-notifier://" -ForegroundColor Green
+} else {
+    Write-Host "Warning: pythonw.exe not found. Click-to-activate will not work." -ForegroundColor Yellow
+    Write-Host "         Notifications will still work, but clicking won't focus the terminal."
+}
+
 Write-Host ""
 Write-Host "Optional: Install 'anthropic' for AI-powered session summaries:"
 Write-Host "   pip install anthropic"
