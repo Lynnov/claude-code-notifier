@@ -255,10 +255,10 @@ WINDOWS_SOUNDS = {
 }
 
 
-def send_notification(title, subtitle, body, sound, terminal_pid=None):
+def send_notification(title, subtitle, body, sound, terminal_pid=None, cwd=""):
     """Send a desktop notification with sound (macOS or Windows)."""
     if sys.platform == "win32":
-        _send_windows_notification(title, subtitle, body, sound, terminal_pid)
+        _send_windows_notification(title, subtitle, body, sound, terminal_pid, cwd)
     else:
         _send_macos_notification(title, subtitle, body, sound)
 
@@ -276,7 +276,7 @@ def _send_macos_notification(title, subtitle, body, sound):
     subprocess.run(["osascript", "-e", script], capture_output=True)
 
 
-def _send_windows_notification(title, subtitle, body, sound, terminal_pid=None):
+def _send_windows_notification(title, subtitle, body, sound, terminal_pid=None, cwd=""):
     """Send a Windows toast notification with sound."""
     sound_path = WINDOWS_SOUNDS.get(sound, "")
     # Play sound in background
@@ -294,7 +294,9 @@ def _send_windows_notification(title, subtitle, body, sound, terminal_pid=None):
     display_body = display_body.replace("'", "''")
     # Build launch attribute for click-to-activate
     if terminal_pid:
-        launch_attr = f' activationType="protocol" launch="claude-code-notifier://activate?pid={terminal_pid}"'
+        from urllib.parse import quote
+        cwd_encoded = quote(cwd, safe="") if cwd else ""
+        launch_attr = f' activationType="protocol" launch="claude-code-notifier://activate?pid={terminal_pid}&amp;cwd={cwd_encoded}"'
     else:
         launch_attr = ''
     ps_toast = f"""
@@ -353,6 +355,7 @@ def main():
             body=last_msg or "回复已完成",
             sound="Hero",
             terminal_pid=terminal_pid,
+            cwd=cwd,
         )
     else:
         send_notification(
@@ -361,6 +364,7 @@ def main():
             body=notif_msg or "需要你的输入",
             sound="Sosumi",
             terminal_pid=terminal_pid,
+            cwd=cwd,
         )
 
 

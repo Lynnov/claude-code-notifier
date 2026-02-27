@@ -4,13 +4,15 @@ Invoked by Windows when user clicks a toast notification.
 Usage: pythonw.exe activate_window.py "claude-code-notifier://activate?pid=12345"
 """
 import sys
+import os
 import ctypes
 import ctypes.wintypes
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
 
-def find_window_by_pid(target_pid):
-    """Find the main visible window belonging to a given PID."""
+def find_window_by_pid(target_pid, keyword=None):
+    """Find the main visible window belonging to a given PID.
+    If keyword is provided, prefer windows whose title contains it."""
     user32 = ctypes.windll.user32
     result = []
 
@@ -23,12 +25,26 @@ def find_window_by_pid(target_pid):
             return True
         pid = ctypes.wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-        if pid.value == target_pid and user32.GetWindowTextLengthW(hwnd) > 0:
-            result.append(hwnd)
+        length = user32.GetWindowTextLengthW(hwnd)
+        if pid.value == target_pid and length > 0:
+            buf = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(hwnd, buf, length + 1)
+            result.append((hwnd, buf.value))
         return True
 
     user32.EnumWindows(WNDENUMPROC(enum_callback), 0)
-    return result[0] if result else None
+
+    if not result:
+        return None
+
+    # Prefer window whose title contains the keyword (project dir name)
+    if keyword:
+        keyword_lower = keyword.lower()
+        for hwnd, title in result:
+            if keyword_lower in title.lower():
+                return hwnd
+
+    return result[0][0]
 
 
 def activate_window(hwnd):
@@ -65,7 +81,11 @@ def main():
         return
     kernel32.CloseHandle(handle)
 
-    hwnd = find_window_by_pid(pid)
+    # Extract project dir name from cwd for window title matching
+    cwd_raw = params.get("cwd", [None])[0]
+    keyword = os.path.basename(unquote(cwd_raw)) if cwd_raw else None
+
+    hwnd = find_window_by_pid(pid, keyword=keyword)
     if hwnd:
         activate_window(hwnd)
 
