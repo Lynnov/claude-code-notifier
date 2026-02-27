@@ -309,7 +309,7 @@ if (-not (Test-Path $regPath)) {{
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime] | Out-Null
 $xml = @'
-<toast{launch_attr}>
+<toast duration="long"{launch_attr}>
   <visual>
     <binding template="ToastGeneric">
       <text>{title}</text>

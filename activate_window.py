@@ -48,14 +48,42 @@ def find_window_by_pid(target_pid, keyword=None):
 
 
 def activate_window(hwnd):
-    """Bring a window to the foreground."""
+    """Bring a window to the foreground.
+
+    Windows restricts SetForegroundWindow for background processes.
+    Use multiple strategies to reliably bring the window to front.
+    """
     user32 = ctypes.windll.user32
     SW_RESTORE = 9
+    SWP_NOMOVE = 0x0002
+    SWP_NOSIZE = 0x0001
+    SWP_SHOWWINDOW = 0x0040
+    HWND_TOPMOST = -1
+    HWND_NOTOPMOST = -2
 
     if user32.IsIconic(hwnd):
         user32.ShowWindow(hwnd, SW_RESTORE)
 
+    # Attach to the foreground window's thread to bypass SetForegroundWindow restriction
+    fore_hwnd = user32.GetForegroundWindow()
+    fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None)
+    cur_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+
+    if fore_thread != cur_thread:
+        user32.AttachThreadInput(cur_thread, fore_thread, True)
+
+    user32.BringWindowToTop(hwnd)
     user32.SetForegroundWindow(hwnd)
+
+    if fore_thread != cur_thread:
+        user32.AttachThreadInput(cur_thread, fore_thread, False)
+
+    # Fallback: flash + topmost toggle if SetForegroundWindow was silently rejected
+    if user32.GetForegroundWindow() != hwnd:
+        flags = SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
+        user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
+        user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags)
+        user32.SetForegroundWindow(hwnd)
 
 
 def main():
